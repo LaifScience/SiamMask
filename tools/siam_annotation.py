@@ -13,7 +13,7 @@ parser.add_argument('--resume', default='', type=str, required=True,
                     metavar='PATH',help='path to latest checkpoint (default: none)')
 parser.add_argument('--config', dest='config', default='config_davis.json',
                     help='hyper-parameter of SiamMask in json format')
-parser.add_argument('--base_path', default='../../data/Multiple_GUN', help='datasets')
+parser.add_argument('--base_path', default='../../data/Adina', help='datasets')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -110,5 +110,5 @@ if __name__ == '__main__':
     fps = f / toc
     print('SiamMask Time: {:02.1f}s Speed: {:3.1f}fps (with visulization!)'.format(toc, fps))
 
-    with open('../../data/Multiple_GUN.json', 'w') as outfile:  
-        json.dump(json.dumps(bboxes), outfile)
+    with open('../../data/Adina.json', 'w') as outfile:  
+        json.dump(bboxes, outfile)
