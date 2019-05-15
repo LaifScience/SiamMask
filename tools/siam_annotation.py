@@ -72,16 +72,17 @@ if __name__ == '__main__':
         tic = cv2.getTickCount()
         if not selected:
             cv2.imshow('SiamMask', im)
-            if cv2.waitKey(0) == ord('s'):  # init
+            key = cv2.waitKey(0)
+            if key == ord('s'):  # init
                 x, y, w, h = select_region(im)
                 print("selected region in frame " + str(f))
                 print((x, y, w, h))
                 state = get_state(x, y, w, h)
                 selected = True
                 bboxes[f] = (int(x), int(y), int(x + w), int(y + h))
-            elif cv2.waitKey(0) == ord('n'):
+            elif key == ord('n'):
                 print("skip frame " + str(f))
-            elif cv2.waitKey(0) == ord('q'):
+            elif key == ord('q'):
                 print("exit at frame " + str(f))                
                 break
                 #cv2.imshow('SiamMask', im)
@@ -104,17 +105,19 @@ if __name__ == '__main__':
             #cv2.polylines(imcopy, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
             cv2.imshow('SiamMask', imcopy)
 
-            if cv2.waitKey(0) == ord('r'):
+            key = cv2.waitKey(0)
+            
+            if key == ord('r'):
                 print("rejected proposal for frame " + str(f))
                 cv2.imshow('SiamMask', im)
                 x, y, w, h = select_region(im)
                 state = get_state(x, y, w, h)
                 bboxes[f] = (int(x), int(y), int(x + w), int(y + h))
                 
-            elif cv2.waitKey(0) == ord('a'):
+            elif key == ord('a'):
                 print("accepted proposal for frame " + str(f))                
                 bboxes[f] = (x, y, xw, yh)
-            elif cv2.waitKey(0) == ord('n'):
+            elif key == ord('n'):
                 print("reject and next frame in frame " + str(f))
                 selected = False           
             
