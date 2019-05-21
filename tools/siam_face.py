@@ -30,6 +30,22 @@ def bb_iou(boxA, boxB):
 	# return the intersection over union value
 	return iou
 
+def scale_bbox(bbox, factor):
+    ini_w = abs(bbox[0] - bbox[2])
+    ini_h = abs(bbox[1] - bbox[3])
+    new_w = ini_w * factor
+    new_h = ini_h * factor
+    pos_x = bbox[0] + ini_w / 2
+    pos_y = bbox[1] + ini_h / 2
+
+    new_left = max(pos_x - new_w / 2, 0)
+    new_top = max(pos_y - new_h / 2, 0)
+    new_right = new_left + new_w
+    new_bottom = new_top + new_h
+
+    return (new_left, new_top, new_right, new_bottom)
+
+
 TrackingResult = namedtuple("TrackingResult", "id bbox")
 
 class SiamFaceTracker(object):
@@ -55,8 +71,8 @@ class SiamFaceTracker(object):
     def set_state(self, im, detection): # we can adapt this input to match the object detector bbox output
         x = detection["left"]
         y = detection["top"]
-        w = x - detection["right"]
-        h = y - detection["bottom"]        
+        w = abs(x - detection["right"])
+        h = abs(y - detection["bottom"])        
         target_pos = np.array([x + w / 2, y + h / 2])
         target_sz = np.array([w, h])
         self.state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp'])     
@@ -67,8 +83,8 @@ class SiamFaceTracker(object):
     def update_state(self, im, detection):
         x = detection["left"]
         y = detection["top"]
-        w = x - detection["right"]
-        h = y - detection["bottom"]
+        w = abs(x - detection["right"])
+        h = abs(y - detection["bottom"])
         target_pos = np.array([x + w / 2, y + h / 2])
         target_sz = np.array([w, h])
         self.state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp']) 
