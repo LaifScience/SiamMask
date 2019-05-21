@@ -30,20 +30,23 @@ def bb_iou(boxA, boxB):
 	# return the intersection over union value
 	return iou
 
-def scale_bbox(bbox, factor):
-    ini_w = abs(bbox[0] - bbox[2])
-    ini_h = abs(bbox[1] - bbox[3])
+def scale_bbox(bbox, factor = 2):
+    ini_w = bbox["right"] - bbox["left"]
+    ini_h = bbox["bottom"] - bbox["top"]
     new_w = ini_w * factor
     new_h = ini_h * factor
-    pos_x = bbox[0] + ini_w / 2
-    pos_y = bbox[1] + ini_h / 2
+    pos_x = bbox["left"] + ini_w / 2
+    pos_y = bbox["top"] + ini_h / 2
 
-    new_left = max(pos_x - new_w / 2, 0)
-    new_top = max(pos_y - new_h / 2, 0)
-    new_right = new_left + new_w
-    new_bottom = new_top + new_h
-
-    return (new_left, new_top, new_right, new_bottom)
+    new_bbox = {
+        "left": max(pos_x - new_w / 2, 0)
+        "top": max(pos_y - new_h / 2, 0)
+        "right" new_left + new_w # no max width check
+        "bottom": new_top + new_h # no max height check
+        "label": bbox["label"]
+    }
+    
+    return new_bbox
 
 
 TrackingResult = namedtuple("TrackingResult", "id bbox")
@@ -69,22 +72,24 @@ class SiamFaceTracker(object):
 
 
     def set_state(self, im, detection): # we can adapt this input to match the object detector bbox output
-        x = detection["left"]
-        y = detection["top"]
-        w = abs(x - detection["right"])
-        h = abs(y - detection["bottom"])        
+        scaled_bbox = scale_bbox(detection)
+        x = scaled_bbox["left"]
+        y = scaled_bbox["top"]
+        w = abs(x - scaled_bbox["right"])
+        h = abs(y - scaled_bbox["bottom"])        
         target_pos = np.array([x + w / 2, y + h / 2])
         target_sz = np.array([w, h])
         self.state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp'])     
-        self.class_id = detection["label"] 
+        self.class_id = scaled_bbox["label"] 
         self.is_recruited = True  
         self.frames_elapsed_from_set_state = 0
 
     def update_state(self, im, detection):
-        x = detection["left"]
-        y = detection["top"]
-        w = abs(x - detection["right"])
-        h = abs(y - detection["bottom"])
+        scaled_bbox = scale_bbox(detection)
+        x = scaled_bbox["left"]
+        y = scaled_bbox["top"]
+        w = abs(x - scaled_bbox["right"])
+        h = abs(y - scaled_bbox["bottom"])        
         target_pos = np.array([x + w / 2, y + h / 2])
         target_sz = np.array([w, h])
         self.state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp']) 
@@ -200,7 +205,7 @@ class MultiTracker(object):
             if next_recruit:
                 next_recruit.set_state(frame, detection)
 
-            results.append(detection)
+            results.append(scale_bbox(detection))
 
         return(results)
 
