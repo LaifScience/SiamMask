@@ -3,11 +3,15 @@
 # Licensed under The MIT License
 # Written by Qiang Wang (wangqiang2015 at ia.ac.cn)
 # --------------------------------------------------------
+import numpy
+import pandas as pd
+
 from os import path
 import glob
 import json
 from tools.test import *
 from siam_face import *
+
 
 parser = argparse.ArgumentParser(description='PyTorch Tracking Annotation')
 
@@ -19,6 +23,10 @@ parser.add_argument('--base_path_images', default='', help='datasets - images di
 parser.add_argument('--base_path_video', default='', help='datasets - video path')
 parser.add_argument('--save_dir', default='', help='output directory')
 args = parser.parse_args()
+
+def load_face_boxes(path):
+    df = pd.read_csv(path)
+    return(df.to_dict(orient="records"))
 
 # copy-pasted function
 def bb_iou(boxA, boxB):
@@ -53,6 +61,10 @@ if __name__ == '__main__':
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
+    
+    
+    
+    
     # Select ROI
     def select_region(im):
         return(cv2.selectROI('SiamMask', im, False, False))    
