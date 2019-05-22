@@ -99,10 +99,27 @@ if __name__ == '__main__':
         results = multi_tracker.process_frame(detections, im)
 
         print(results)
-            
-            
-    #     cv2.rectangle(imcopy, (x, y), (xw, yh), (0, 255, 0), 2)
-    #     cv2.imshow('SiamMask', imcopy)
+
+        for r in results:
+            x = int(r["left"])
+            y = int(r["top"])
+            xw = int(r["right"])
+            yh = int(r["bottom"])  
+            text = r["label"]    
+
+            cv2.rectangle(im, (x, y), (xw, yh), (0, 255, 0), 2)
+            cv2.putText(im, text, (x + 4, yh - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), lineType=2)
+
+        for r in detections:
+            x = int(r["left"])
+            y = int(r["top"])
+            xw = int(r["right"])
+            yh = int(r["bottom"])      
+
+            cv2.rectangle(im, (x, y), (xw, yh), (255, 0, 0), 2)
+
+        cv2.imshow('SiamMask', im)
+        cv2.waitKey(1)
 
     #     key = cv2.waitKey(0)
         

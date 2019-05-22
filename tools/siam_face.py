@@ -1,6 +1,6 @@
 import uuid
 
-from collections import namedtuple
+from collections import namedtuple, Counter
 from tools.test import *
 from custom import Custom
 
@@ -72,6 +72,7 @@ class SiamFaceTracker(object):
         self.iou = None
         self.frames_elapsed_from_set_state = 0
         self.last_tracking_result = None
+        self.counter = Counter()
 
 
     def set_state(self, im, detection): # we can adapt this input to match the object detector bbox output
@@ -86,6 +87,7 @@ class SiamFaceTracker(object):
         self.class_id = scaled_bbox["label"] 
         self.is_recruited = True  
         self.frames_elapsed_from_set_state = 0
+        self.counter[scaled_bbox["label"]] += 1
 
     def update_state(self, im, detection):
         scaled_bbox = scale_bbox(detection)
@@ -97,6 +99,7 @@ class SiamFaceTracker(object):
         target_sz = np.array([w, h])
         self.state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp']) 
         self.frames_elapsed_from_set_state = 0
+        self.counter[scaled_bbox["label"]] += 1
 
     def invalidate(self):
         self.class_id = None
@@ -105,6 +108,7 @@ class SiamFaceTracker(object):
         self.last_tracking_result = None
         self.prev_bbox = None
         self.iou = None
+        self.counter = Counter()
 
     def track_face(self, im):        
         if not self.is_recruited:
@@ -128,6 +132,8 @@ class SiamFaceTracker(object):
         self.prev_bbox = c_bbox
         self.frames_elapsed_from_set_state += 1
 
+        self.class_id = self.counter.most_common(1)[0][0]
+        
         if self.iou:
             if self.iou > self.min_iou:
                 self.last_tracking_result = (TrackingResult(self.class_id, c_bbox))                
@@ -188,10 +194,11 @@ class MultiTracker(object):
                 if iou > 0 and siam.frames_elapsed_from_set_state > self.fps:
                     siam.update_state(frame, detection)
 
-                if siam.frames_elapsed_from_set_state > self.fps * 10:
+                if siam.frames_elapsed_from_set_state > self.fps * 5:
                     siam.invalidate()
 
                 if iou > 0:
+                    siam.counter[detection["label"]] += 1
                     overlap = True
                     break                    
             
