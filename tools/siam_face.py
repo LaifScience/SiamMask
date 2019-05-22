@@ -55,7 +55,7 @@ def scale_bbox(bbox, factor = 2):
 TrackingResult = namedtuple("TrackingResult", "id bbox")
 
 class SiamFaceTracker(object):
-    def __init__(self, cfg, min_iou = 0.3, model="SiamMask_DAVIS.pth"):
+    def __init__(self, cfg, min_iou = 0.3, scale_factor = 2, model="SiamMask_DAVIS.pth"):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # to do - check if this should be instantiated for multiple SiamMasks objects
         self.internal_id = uuid.uuid4() # object identity can also work
         
@@ -73,10 +73,11 @@ class SiamFaceTracker(object):
         self.frames_elapsed_from_set_state = 0
         self.last_tracking_result = None
         self.counter = Counter()
+        self.scale_factor = scale_factor
 
 
     def set_state(self, im, detection): # we can adapt this input to match the object detector bbox output
-        scaled_bbox = scale_bbox(detection)
+        scaled_bbox = scale_bbox(detection, self.scale_factor)
         x = scaled_bbox["left"]
         y = scaled_bbox["top"]
         w = abs(x - scaled_bbox["right"])
@@ -90,7 +91,7 @@ class SiamFaceTracker(object):
         self.counter[scaled_bbox["label"]] += 1
 
     def update_state(self, im, detection):
-        scaled_bbox = scale_bbox(detection)
+        scaled_bbox = scale_bbox(detection, self.scale_factor)
         x = scaled_bbox["left"]
         y = scaled_bbox["top"]
         w = abs(x - scaled_bbox["right"])
@@ -101,7 +102,8 @@ class SiamFaceTracker(object):
         self.frames_elapsed_from_set_state = 0
         self.counter[scaled_bbox["label"]] += 1
 
-    def invalidate(self):
+    def invalidate(self, reason):
+        print(reason)
         self.class_id = None
         self.is_recruited = False
         self.frames_elapsed_from_set_state = 0
@@ -138,10 +140,7 @@ class SiamFaceTracker(object):
             if self.iou > self.min_iou:
                 self.last_tracking_result = (TrackingResult(self.class_id, c_bbox))                
             else:
-                self.prev_bbox = None
-                self.iou = None
-                self.is_recruited = False
-                self.last_tracking_result = None                
+                self.invalidate("invalidate: insufficient iou with previous frame")              
         else:
             self.last_tracking_result = (TrackingResult(self.class_id, c_bbox))
 
@@ -157,7 +156,7 @@ class MultiTracker(object):
         if not (siam_x.last_tracking_result and siam_y.last_tracking_result):
             return(False)
         iou = bb_iou(siam_x.last_tracking_result.bbox, siam_y.last_tracking_result.bbox)
-        return(iou > 0)
+        return(iou > 0.5)
     
     def make_result_dict(self, siam):
         bbox = siam.last_tracking_result.bbox
@@ -177,8 +176,8 @@ class MultiTracker(object):
                 continue                        
             for siam_y in self.siams:
                 if self.iou_siam(siam_x, siam_y):
-                    siam_x.invalidate()
-                    siam_y.invalidate()
+                    siam_x.invalidate("overlapping with other")
+                    siam_y.invalidate("overlapping with other")
         
         detection_wo_siam_overlap = []
         
@@ -194,8 +193,10 @@ class MultiTracker(object):
                 if iou > 0 and siam.frames_elapsed_from_set_state > self.fps:
                     siam.update_state(frame, detection)
 
-                if siam.frames_elapsed_from_set_state > self.fps * 5:
-                    siam.invalidate()
+                if siam.frames_elapsed_from_set_state > self.fps * 20:
+                    print("invalidate siam ...")
+                    print(siam.internal_id)
+                    siam.invalidate("to many frames from last detector update")
 
                 if iou > 0:
                     siam.counter[detection["label"]] += 1
@@ -216,6 +217,57 @@ class MultiTracker(object):
                 next_recruit.set_state(frame, detection)
 
             results.append(scale_bbox(detection))
+
+        return(results)
+
+class GunTracker(object):
+    def __init__(self, fps, siam):
+        self.siam = siam
+        self.fps = fps           
+    
+    def make_result_dict(self, siam):
+        bbox = siam.last_tracking_result.bbox
+        label = siam.last_tracking_result.id
+        res_dict = {"left" : bbox[0], "top" : bbox[1], "right" : bbox[2], "bottom" : bbox[3], "label" : label }
+        return(res_dict)
+    
+    def process_frame(self, detections,  frame):
+        results = []
+        
+        self.siam.track_face(frame)       
+        
+        detection_wo_siam_overlap = []
+        
+        for detection in detections:
+            overlap = False
+            
+            if (self.siam.is_recruited and self.siam.last_tracking_result): 
+                gun_box = (detection["left"], detection["top"], detection["right"], detection["bottom"])
+                iou = bb_iou(gun_box, self.siam.last_tracking_result.bbox)                
+
+                if iou > 0 and self.siam.frames_elapsed_from_set_state > 1:
+                    self.siam.update_state(frame, detection)
+
+                if self.siam.frames_elapsed_from_set_state > self.fps  / 2:                    
+                    self.siam.invalidate("to many frames from last detector update")
+
+                if iou > 0:
+                    self.siam.counter[detection["label"]] += 1
+                    overlap = True
+                    break                    
+            
+            if not overlap:
+                detection_wo_siam_overlap.append(detection)
+
+        
+        if self.siam.is_recruited and self.siam.last_tracking_result:
+            results.append(self.make_result_dict(self.siam))
+
+        for detection in detection_wo_siam_overlap:
+            if not self.siam.is_recruited:
+                self.siam.set_state(frame, detection)
+
+        #     results.append(detection)
 
         return(results)
 

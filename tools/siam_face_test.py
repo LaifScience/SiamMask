@@ -21,7 +21,8 @@ parser.add_argument('--config', dest='config', default='config_davis.json',
                     help='hyper-parameter of SiamMask in json format')
 parser.add_argument('--base_path_images', default='', help='datasets - images directory')
 parser.add_argument('--base_path_video', default='', help='datasets - video path')
-parser.add_argument('--boxes_file', default='', help='datasets - face boxes')
+parser.add_argument('--face_boxes_file', default='', help='datasets - face boxes')
+parser.add_argument('--gun_boxes_file', default='', help='datasets - gun boxes')
 parser.add_argument('--save_dir', default='', help='output directory')
 args = parser.parse_args()
 
@@ -58,9 +59,9 @@ def bb_iou(boxA, boxB):
 if __name__ == '__main__':
     cfg = load_config(args)
     siams = [ SiamFaceTracker(cfg, model=args.resume) for _ in range(6) ]
-    multi_tracker = MultiTracker(16, siams)
-    print(len(siams))
-    #siam_2 = SiamFaceTracker(cfg, model=args.resume)
+    multi_tracker = MultiTracker(24, siams)
+    gun_tracker = GunTracker(24, SiamFaceTracker(cfg, scale_factor = 1, min_iou = 0.5, model=args.resume))
+    
 
     #cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -89,19 +90,22 @@ if __name__ == '__main__':
     bboxes = {}
 
     print("Loading faces...")
-    face_boxes = load_face_boxes(args.boxes_file)
+    face_boxes = load_face_boxes(args.face_boxes_file)
+    gun_boxes = load_face_boxes(args.gun_boxes_file)
 
     out = cv2.VideoWriter('outvid.mp4', cv2.VideoWriter_fourcc(*'XVID'), 24, (1920,1080))
 
     for f, im in enumerate(data_gen):
-        print("processing frame " + str(f))
+        #print("processing frame " + str(f))
         tic = cv2.getTickCount()               
                   
         detections = face_boxes[f] if f in face_boxes else []
+        gun_detections = gun_boxes[f] if f in gun_boxes else []
         results = multi_tracker.process_frame(detections, im)
+        gun_results = gun_tracker.process_frame(gun_detections, im)
 
-        print(results)
-
+        #print(results)
+        # faces related
         for r in results:
             x = int(r["left"])
             y = int(r["top"])
@@ -119,6 +123,18 @@ if __name__ == '__main__':
             yh = int(r["bottom"])      
 
             cv2.rectangle(im, (x, y), (xw, yh), (255, 0, 0), 2)
+
+        # gun related (some duplicated code here - factor it out in some function)
+
+        for r in gun_results:
+            x = int(r["left"])
+            y = int(r["top"])
+            xw = int(r["right"])
+            yh = int(r["bottom"])  
+            text = r["label"]    
+
+            cv2.rectangle(im, (x, y), (xw, yh), (0,0,255), 2)
+            cv2.putText(im, "Handgun", (x + 4, yh - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), lineType=2)
         
         out.write(im)
 
