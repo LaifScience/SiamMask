@@ -26,6 +26,7 @@ parser.add_argument('--save_dir', default='', help='output directory')
 args = parser.parse_args()
 
 def load_face_boxes(path):
+    print(path)
     df = pd.read_csv(path)
     ds = df.groupby("frame_idx").apply(lambda x: x.to_dict(orient="records"))
     return(ds.to_dict())
@@ -85,67 +86,49 @@ if __name__ == '__main__':
     data_gen = gen_from_video() if args.base_path_video else gen_from_images('*.jp*')
 
     toc = 0
-    selected = False
-    bboxes = {}   
-    prev_box = None
+    bboxes = {}
 
+    print("Loading faces...")
     face_boxes = load_face_boxes(args.boxes_file)
 
     for f, im in enumerate(data_gen):
         print("processing frame " + str(f))
-        tic = cv2.getTickCount()
-        if not selected:
-            cv2.imshow('SiamMask', im)
-            key = cv2.waitKey(0)
-            if key == ord('s'):  # init
-                x, y, w, h = select_region(im)
-                print("selected region in frame " + str(f))
-                print((x, y, w, h))
-                siam.set_state(im, (x, y, w, h))
-                selected = True
-                bboxes[f] = (int(x), int(y), int(x + w), int(y + h))
-            elif key == ord('n'):
-                print("skip frame " + str(f))
-            elif key == ord('q'):
-                print("exit at frame " + str(f))  
-                break
-                
-        elif selected:  # tracking
-            imcopy = im.copy() # for the case when the proposed box is rejected           
+        tic = cv2.getTickCount()               
+                  
+        detections = face_boxes[f] if f in face_boxes else []
+        results = multi_tracker.process_frame(detections, im)
 
-            (x, y, xw, yh) = siam.track_face(im) 
-            if (prev_box):
-                print(bb_iou(prev_box, (x, y, xw, yh))) 
-            prev_box = (x, y, xw, yh)
+        print(results)
             
-            cv2.rectangle(imcopy, (x, y), (xw, yh), (0, 255, 0), 2)
-            cv2.imshow('SiamMask', imcopy)
+            
+    #     cv2.rectangle(imcopy, (x, y), (xw, yh), (0, 255, 0), 2)
+    #     cv2.imshow('SiamMask', imcopy)
 
-            key = cv2.waitKey(0)
+    #     key = cv2.waitKey(0)
+        
+    #     if key == ord('r'):
+    #         print("rejected proposal for frame " + str(f))
+    #         cv2.imshow('SiamMask', im)
+    #         x, y, w, h = select_region(im)
+    #         siam.set_state(im, (x, y, w, h))
+    #         bboxes[f] = (int(x), int(y), int(x + w), int(y + h))
             
-            if key == ord('r'):
-                print("rejected proposal for frame " + str(f))
-                cv2.imshow('SiamMask', im)
-                x, y, w, h = select_region(im)
-                siam.set_state(im, (x, y, w, h))
-                bboxes[f] = (int(x), int(y), int(x + w), int(y + h))
-                
-            elif key == ord('a'):
-                print("accepted proposal for frame " + str(f))                
-                bboxes[f] = (x, y, xw, yh)
-            elif key == ord('n'):
-                print("reject and next frame in frame " + str(f))
-                selected = False           
+    #     elif key == ord('a'):
+    #         print("accepted proposal for frame " + str(f))                
+    #         bboxes[f] = (x, y, xw, yh)
+    #     elif key == ord('n'):
+    #         print("reject and next frame in frame " + str(f))
+    #         selected = False           
             
 
-        toc += cv2.getTickCount() - tic
-    toc /= cv2.getTickFrequency()
-    fps = f / toc
-    print('SiamMask Time: {:02.1f}s Speed: {:3.1f}fps (with visulization!)'.format(toc, fps))
+    #     toc += cv2.getTickCount() - tic
+    # toc /= cv2.getTickFrequency()
+    # fps = f / toc
+    # print('SiamMask Time: {:02.1f}s Speed: {:3.1f}fps (with visulization!)'.format(toc, fps))
     
-    def get_save_path():
-        from_path = args.base_path_video if args.base_path_video else args.base_path_images
-        return(join(args.save_dir, path.splitext(path.basename(from_path))[0] + ".json"))
+    # def get_save_path():
+    #     from_path = args.base_path_video if args.base_path_video else args.base_path_images
+    #     return(join(args.save_dir, path.splitext(path.basename(from_path))[0] + ".json"))
 
-    with open(get_save_path(), 'w') as outfile:  
-        json.dump(bboxes, outfile)
+    # with open(get_save_path(), 'w') as outfile:  
+    #     json.dump(bboxes, outfile)

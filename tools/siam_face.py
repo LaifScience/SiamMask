@@ -38,9 +38,12 @@ def scale_bbox(bbox, factor = 2):
     pos_x = bbox["left"] + ini_w / 2
     pos_y = bbox["top"] + ini_h / 2
 
+    new_left = max(pos_x - new_w / 2, 0)
+    new_top = max(pos_y - new_h / 2, 0)
+
     new_bbox = {
-        "left": max(pos_x - new_w / 2, 0),
-        "top": max(pos_y - new_h / 2, 0),
+        "left": new_left,
+        "top": new_top,
         "right": new_left + new_w, # no max width check
         "bottom": new_top + new_h, # no max height check
         "label": bbox["label"]
