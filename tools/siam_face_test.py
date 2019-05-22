@@ -57,12 +57,12 @@ def bb_iou(boxA, boxB):
 
 if __name__ == '__main__':
     cfg = load_config(args)
-    siams = [ SiamFaceTracker(cfg, model=args.resume) for _ in range(5) ]
+    siams = [ SiamFaceTracker(cfg, model=args.resume) for _ in range(6) ]
     multi_tracker = MultiTracker(16, siams)
     print(len(siams))
     #siam_2 = SiamFaceTracker(cfg, model=args.resume)
 
-    cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
+    #cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     
@@ -91,6 +91,8 @@ if __name__ == '__main__':
     print("Loading faces...")
     face_boxes = load_face_boxes(args.boxes_file)
 
+    out = cv2.VideoWriter('outvid.mp4', cv2.VideoWriter_fourcc(*'XVID'), 24, (1920,1080))
+
     for f, im in enumerate(data_gen):
         print("processing frame " + str(f))
         tic = cv2.getTickCount()               
@@ -117,9 +119,13 @@ if __name__ == '__main__':
             yh = int(r["bottom"])      
 
             cv2.rectangle(im, (x, y), (xw, yh), (255, 0, 0), 2)
+        
+        out.write(im)
 
-        cv2.imshow('SiamMask', im)
-        cv2.waitKey(1)
+    out.release() 
+
+        #cv2.imshow('SiamMask', im)
+        #cv2.waitKey(1)
 
     #     key = cv2.waitKey(0)
         
