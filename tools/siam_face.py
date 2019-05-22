@@ -123,13 +123,13 @@ class SiamFaceTracker(object):
         c_bbox = (x, y, xw, yh)
 
         if self.prev_bbox:
-            self.iou = bb_iou(self.prev_bbbox, c_bbox)
+            self.iou = bb_iou(self.prev_bbox, c_bbox)
 
         self.prev_bbox = c_bbox
         self.frames_elapsed_from_set_state += 1
 
         if self.iou:
-            if iou > self.min_iou:
+            if self.iou > self.min_iou:
                 self.last_tracking_result = (TrackingResult(self.class_id, c_bbox))                
             else:
                 self.prev_bbox = None
