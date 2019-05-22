@@ -39,10 +39,10 @@ def scale_bbox(bbox, factor = 2):
     pos_y = bbox["top"] + ini_h / 2
 
     new_bbox = {
-        "left": max(pos_x - new_w / 2, 0)
-        "top": max(pos_y - new_h / 2, 0)
-        "right" new_left + new_w # no max width check
-        "bottom": new_top + new_h # no max height check
+        "left": max(pos_x - new_w / 2, 0),
+        "top": max(pos_y - new_h / 2, 0),
+        "right": new_left + new_w, # no max width check
+        "bottom": new_top + new_h, # no max height check
         "label": bbox["label"]
     }
     
@@ -153,7 +153,7 @@ class MultiTracker(object):
     def make_result_dict(self, siam):
         bbox = siam.last_tracking_result.bbox
         label = siam.last_tracking_result.id
-        res_dict = {"left" : bbox[0], "top" : bbox[1]; "right" : bbox[2], "bottom" : bbox[3], "label" : label }
+        res_dict = {"left" : bbox[0], "top" : bbox[1], "right" : bbox[2], "bottom" : bbox[3], "label" : label }
         return(res_dict)
     
     def process_frame(self, detections,  frame):
@@ -200,7 +200,7 @@ class MultiTracker(object):
                 results.append(self.make_result_dict(siam))
 
         for detection in detection_wo_siam_overlap:
-            next_recruit = next(siam for siam in self.siams if not siam.is_recruited, None)
+            next_recruit = next((siam for siam in self.siams if not siam.is_recruited), None)
 
             if next_recruit:
                 next_recruit.set_state(frame, detection)

@@ -21,12 +21,14 @@ parser.add_argument('--config', dest='config', default='config_davis.json',
                     help='hyper-parameter of SiamMask in json format')
 parser.add_argument('--base_path_images', default='', help='datasets - images directory')
 parser.add_argument('--base_path_video', default='', help='datasets - video path')
+parser.add_argument('--boxes_file', default='', help='datasets - face boxes')
 parser.add_argument('--save_dir', default='', help='output directory')
 args = parser.parse_args()
 
 def load_face_boxes(path):
     df = pd.read_csv(path)
-    return(df.to_dict(orient="records"))
+    ds = df.groupby("frame_idx").apply(lambda x: x.to_dict(orient="records"))
+    return(ds.to_dict())
 
 # copy-pasted function
 def bb_iou(boxA, boxB):
@@ -52,18 +54,16 @@ def bb_iou(boxA, boxB):
 	# return the intersection over union value
 	return iou
 
-
 if __name__ == '__main__':
     cfg = load_config(args)
-    siam = SiamFaceTracker(cfg, model=args.resume)
+    siams = [ SiamFaceTracker(cfg, model=args.resume) for _ in range(5) ]
+    multi_tracker = MultiTracker(16, siams)
+    print(len(siams))
     #siam_2 = SiamFaceTracker(cfg, model=args.resume)
 
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    
-    
-    
     
     # Select ROI
     def select_region(im):
@@ -88,6 +88,8 @@ if __name__ == '__main__':
     selected = False
     bboxes = {}   
     prev_box = None
+
+    face_boxes = load_face_boxes(args.boxes_file)
 
     for f, im in enumerate(data_gen):
         print("processing frame " + str(f))
