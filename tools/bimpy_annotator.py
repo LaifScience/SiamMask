@@ -208,6 +208,7 @@ tab_rects = bimpy.Bool(True)
 tab_keyframes = bimpy.Bool(True)
 
 # Global state
+is_autoplay = bimpy.Bool(False)
 cursor_x1 = -10
 cursor_y1 = -10
 cursor_x2 = -10
@@ -235,16 +236,37 @@ def action_add_annotation():
 
 def save_data(path):
     lines = []
-    for face_idx, rects in enumerate(rect_db):
+    for frame_idx, rects in enumerate(rect_db):
         for r in rects.values():
             lines.append('%s,%d,%d,%d,%d,%d,%d,%s\n' % (video_name, frame_idx, r.idx,
                                                         r.x1, r.y1, r.x2, r.y2, 'GUN'))
 
     with io.open(path, 'w') as f:
-        f.write("video_file,frame_idx,face_idx_in_frame,left,top,right,bottom,label\n")
+        f.write("video_file,frame_idx,rect_idx,left,top,right,bottom,label\n")
         f.writelines(lines)
 
     print("saved data to %s" % path)
+
+def load_data(path):
+    df = None
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        print("failed to load data from %s" % path)
+        return
+
+    global rect_db
+    global rect_table_of_contents
+    global rect_table_of_contents_sorted
+    rect_db = [{} for x in range(video_len)]
+    rect_table_of_contents = set()
+    rect_table_of_contents_sorted = []
+
+    for index, row in df.iterrows():
+        rect_db[row['frame_idx']][row['rect_idx']] = Rect(row['left'], row['top'], row['right'], row['bottom'], row['rect_idx'])
+        update_rect_toc(row['frame_idx'])
+
+    print("loaded data from %s" % path)
 
 end_rect_action = action_add_annotation
 
@@ -255,6 +277,8 @@ while(not ctx.should_close()):
     if bimpy.begin_main_menu_bar():
         if bimpy.menu_item('Save', ''):
             save_data(args.save_path)
+        if bimpy.menu_item('Load', ''):
+            load_data(args.save_path)
         bimpy.end_main_menu_bar()  # According to bimpy docs, this is a special case where end is called inside the if.
 
     if bimpy.begin("Video", opened=tab_video_view):
@@ -263,10 +287,14 @@ while(not ctx.should_close()):
         b_i = bimpy.Int(display_frame)
         bimpy.slider_int("Frame", b_i, 0, video_len, "%d")
 
-        if bimpy.button(" < Prev ") or bimpy.is_key_released(ord('Z')):
+        if bimpy.button(" < Prev (z) ") or bimpy.is_key_down(ord('Z')):
             b_i.value -= 1
         bimpy.same_line()
-        if bimpy.button(" Next > ") or bimpy.is_key_released(ord('X')):
+        bimpy.checkbox("Autoplay (c to stop)", is_autoplay)
+        if bimpy.is_key_down(ord('C')):
+            is_autoplay.value = False
+        bimpy.same_line()
+        if bimpy.button(" Next > (x) ") or bimpy.is_key_down(ord('X')) or is_autoplay.value:
             b_i.value += 1
 
         if display_frame != b_i.value:
