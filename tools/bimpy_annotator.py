@@ -28,6 +28,7 @@ args = parser.parse_args()
 if args.save_path is None:
     args.save_path = str(Path(args.base_path_video).with_suffix('.csv'))
 
+all_labels = ['HANDGUN', 'RIFLE']
 
 # Init UI
 ctx = bimpy.Context()
@@ -86,12 +87,13 @@ siammask.eval().to(device)
 
 # Setup Data
 class Rect:
-    def __init__(self, x1=0, y1=0, x2=0, y2=0, idx=-1):
+    def __init__(self, x1=0, y1=0, x2=0, y2=0, idx=-1, label='HANDGUN'):
         self.x = (x1 + x2) / 2
         self.y = (y1 + y2) / 2
         self.w = x2 - x1
         self.h = y2 - y1
         self.idx = idx
+        self.label = label
 
     @property
     def pos(self):
@@ -134,7 +136,7 @@ rect_table_of_contents = set()
 rect_table_of_contents_sorted = []
 annotation_frame = 0
 active_annotations = {}
-
+current_label_idx = bimpy.Int(0)
 
 def is_rect_active(rect):
     return rect.idx in active_annotations
@@ -163,6 +165,8 @@ class Annotation:
         self.frame_idx = frame_idx
         anot_idx += 1
         rect.idx = self.idx
+        rect.label = all_labels[current_label_idx.value]
+        self.label = rect.label
         self.reinit(image, rect, frame_idx)
 
     def reinit(self, image, rect, frame_idx):
@@ -175,6 +179,7 @@ class Annotation:
         self.siam_state = siamese_track(self.siam_state, image, mask_enable=False)
         r = Rect()
         r.idx = self.idx
+        r.label = self.label
         r.pos = self.siam_state["target_pos"]
         r.size = self.siam_state["target_sz"]
         rect_db[frame_idx][self.idx] = r
@@ -226,9 +231,11 @@ def ui_get_screen_rect(x1, y1, x2, y2):
     y2 = img_display_zero.y + y2 / video_h * img_display_h
     return x1, y1, x2, y2
 
-def ui_draw_rect(x1, y1, x2, y2, color=0xFF00FFFF):
+def ui_draw_rect(x1, y1, x2, y2, color=0xFF00FFFF, label=''):
     x1, y1, x2, y2 = ui_get_screen_rect(x1, y1, x2, y2)
     bimpy.add_rect(bimpy.Vec2(x1, y1), bimpy.Vec2(x2, y2), color, thickness=4)
+    if label:
+        bimpy.add_text
 
 def action_add_annotation():
     a = Annotation(img_data, Rect(cursor_x1, cursor_y1, cursor_x2, cursor_y2), display_frame)
@@ -239,7 +246,7 @@ def save_data(path):
     for frame_idx, rects in enumerate(rect_db):
         for r in rects.values():
             lines.append('%s,%d,%d,%d,%d,%d,%d,%s\n' % (video_name, frame_idx, r.idx,
-                                                        r.x1, r.y1, r.x2, r.y2, 'GUN'))
+                                                        r.x1, r.y1, r.x2, r.y2, r.label))
 
     with io.open(path, 'w') as f:
         f.write("video_file,frame_idx,rect_idx,left,top,right,bottom,label\n")
@@ -263,7 +270,7 @@ def load_data(path):
     rect_table_of_contents_sorted = []
 
     for index, row in df.iterrows():
-        rect_db[row['frame_idx']][row['rect_idx']] = Rect(row['left'], row['top'], row['right'], row['bottom'], row['rect_idx'])
+        rect_db[row['frame_idx']][row['rect_idx']] = Rect(row['left'], row['top'], row['right'], row['bottom'], row['rect_idx'], row['label'])
         update_rect_toc(row['frame_idx'])
 
     print("loaded data from %s" % path)
@@ -287,18 +294,20 @@ while(not ctx.should_close()):
         b_i = bimpy.Int(display_frame)
         bimpy.slider_int("Frame", b_i, 0, video_len, "%d")
 
-        if bimpy.button(" < Prev (z) ") or bimpy.is_key_down(ord('Z')):
+        if bimpy.button(" < Prev (z) ") or bimpy.is_key_released(ord('Z')):
             b_i.value -= 1
         bimpy.same_line()
         bimpy.checkbox("Autoplay (c to stop)", is_autoplay)
         if bimpy.is_key_down(ord('C')):
             is_autoplay.value = False
         bimpy.same_line()
-        if bimpy.button(" Next > (x) ") or bimpy.is_key_down(ord('X')) or is_autoplay.value:
+        if bimpy.button(" Next > (x) ") or bimpy.is_key_released(ord('X')) or is_autoplay.value:
             b_i.value += 1
 
         if display_frame != b_i.value:
             simulate_to_frame(b_i.value)
+
+        bimpy.combo('Label used for annotation', current_label_idx, all_labels)
 
         img_display_w = bimpy.get_window_content_region_width()
         img_display_h = img_display_w * video_h / video_w
@@ -316,8 +325,8 @@ while(not ctx.should_close()):
                 color = 0xFFFFFF00 if is_rect_active(r) else 0xFF0000FF
                 is_placing_rect = False
                 bimpy.begin_tooltip()
+                bimpy.text(r.label)
                 bimpy.text('Idx: %d' % r.idx)
-                bimpy.separator()
                 bimpy.end_tooltip()
 
                 if bimpy.is_mouse_released(0):
@@ -373,8 +382,9 @@ while(not ctx.should_close()):
     if bimpy.begin("Rects in frame", opened=tab_rects):
         for r in rect_db[display_frame].values():
             bimpy.text("Rect %d" % r.idx)
-            bimpy.text("Pos : %d, %d" % (r.x, r.y))
-            bimpy.text("Size: %d, %d" % (r.w, r.h))
+            bimpy.text("Label: %s" % r.label)
+            bimpy.text("Pos  : %d, %d" % (r.x, r.y))
+            bimpy.text("Size : %d, %d" % (r.w, r.h))
             bimpy.separator()
     bimpy.end()
 
